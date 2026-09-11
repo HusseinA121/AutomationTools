@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wiring Extraction — from vendor PDFs to wire maps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A141C;
+    --bg-panel: #0F1E28;
+    --bg-panel-raised: #142B38;
+    --grid-line: #16303E;
+    --border: #21404F;
+    --text-primary: #E7EEF1;
+    --text-secondary: #A9BCC5;
+    --text-muted: #6C8896;
+    --accent-cyan: #5FC1CC;
+    --accent-amber: #E7A94C;
+    --font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
+    --font-body: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text-primary); margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-body);
+    line-height: 1.6;
+    background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-attachment: fixed;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 56px 24px 96px; }
+
+  .tag-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .tag {
+    font-family: var(--font-mono); font-size: 11.5px; color: var(--accent-cyan);
+    border: 1px solid var(--border); background: var(--bg-panel);
+    padding: 4px 10px; border-radius: 3px;
+  }
+
+  header.hero {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 40px;
+    align-items: center;
+    margin-bottom: 64px;
+    opacity: 0;
+    animation: rise 0.7s ease-out forwards;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { header.hero { animation: none; opacity: 1; } }
+  @media (max-width: 760px) { header.hero { grid-template-columns: 1fr; } }
+
+  h1 {
+    font-family: var(--font-display); font-weight: 600;
+    font-size: clamp(28px, 4vw, 38px); line-height: 1.15; margin: 0 0 16px; max-width: 16ch;
+  }
+  .lede { font-size: 16.5px; color: var(--text-secondary); max-width: 52ch; margin: 0; }
+
+  .hero-diagram { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 3px; padding: 20px; }
+  .hero-diagram .cap { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin: 0 0 12px; }
+
+  h2 {
+    font-family: var(--font-display); font-weight: 600; font-size: clamp(20px, 2.6vw, 25px); margin: 0 0 8px;
+  }
+  .section-sub { color: var(--text-secondary); font-size: 15px; max-width: 60ch; margin: 0 0 28px; }
+  section { margin-top: 64px; padding-top: 40px; border-top: 1px solid var(--border); }
+
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .steps { grid-template-columns: 1fr; } }
+  .step { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 3px; padding: 18px; }
+  .step .num { font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 10px; }
+  .step h3 { font-family: var(--font-body); font-size: 14.5px; font-weight: 600; margin: 0 0 6px; }
+  .step p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+  .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 3px; padding: 26px; margin-bottom: 22px; }
+  .panel-label { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); margin: 0 0 16px; display: flex; justify-content: space-between; gap: 12px; }
+
+  pre.code {
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--text-secondary);
+    background: var(--bg-panel-raised); border: 1px solid var(--border); border-radius: 3px;
+    padding: 18px 20px; overflow-x: auto; margin: 0; line-height: 1.65;
+  }
+  pre.code .kw { color: var(--accent-cyan); }
+  pre.code .fn { color: var(--accent-amber); }
+  pre.code .cm { color: var(--text-muted); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 660px) { .split { grid-template-columns: 1fr; } }
+
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+  table.extract { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; }
+  table.extract th { text-align: left; font-weight: 500; color: var(--text-muted); padding: 7px 9px; border-bottom: 1px solid var(--border); }
+  table.extract td { padding: 7px 9px; color: var(--text-primary); border-bottom: 1px solid var(--grid-line); }
+  table.extract tr:nth-child(even) td { background: var(--bg-panel-raised); }
+
+  .console {
+    font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+    background: var(--bg-panel-raised); border: 1px solid var(--border); border-radius: 3px;
+    padding: 14px 16px; margin-top: 16px;
+  }
+  .console div { margin-bottom: 4px; }
+  .console .ok { color: var(--accent-cyan); }
+  .console .amber { color: var(--accent-amber); }
+
+  .note { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-muted); }
+  .note strong { color: var(--text-secondary); font-weight: 500; }
+  code.inline { font-family: var(--font-mono); font-size: 0.92em; color: var(--accent-cyan); background: var(--bg-panel-raised); padding: 1px 6px; border-radius: 2px; }
+
+  a.pair-link { color: var(--accent-cyan); text-decoration: none; border-bottom: 1px solid var(--border); }
+  a.pair-link:hover { border-bottom-color: var(--accent-cyan); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="tag-row">
+    <span class="tag">Python</span>
+    <span class="tag">Vision model API</span>
+    <span class="tag">EPLAN documentation</span>
+  </div>
+
+  <header class="hero">
+    <div>
+      <h1>Turning vendor manuals into wireable data</h1>
+      <p class="lede">Terminal wiring for third-party equipment lives buried in PDF manuals — read once by hand, then retyped into a spreadsheet, page after page. This tool reads the manual directly and produces a structured connection table ready to feed into wire mapping.</p>
+    </div>
+    <div class="hero-diagram">
+      <p class="cap">Pipeline</p>
+      <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a1" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#5FC1CC"/></marker>
+        </defs>
+        <rect x="10" y="10" width="280" height="42" rx="3" fill="#142B38" stroke="#21404F"/>
+        <text x="150" y="35" text-anchor="middle" fill="#E7EEF1" font-family="IBM Plex Sans" font-size="12.5">Vendor PDF manual</text>
+        <path d="M150,52 V72" stroke="#5FC1CC" stroke-width="1.4" marker-end="url(#a1)"/>
+        <rect x="10" y="72" width="280" height="42" rx="3" fill="#142B38" stroke="#21404F"/>
+        <text x="150" y="97" text-anchor="middle" fill="#E7EEF1" font-family="IBM Plex Sans" font-size="12.5">Vision model, page by page</text>
+        <path d="M150,114 V134" stroke="#5FC1CC" stroke-width="1.4" marker-end="url(#a1)"/>
+        <rect x="10" y="134" width="280" height="42" rx="3" fill="#142B38" stroke="#21404F"/>
+        <text x="150" y="159" text-anchor="middle" fill="#E7EEF1" font-family="IBM Plex Sans" font-size="12.5">Structured connection table</text>
+        <path d="M150,176 V196" stroke="#5FC1CC" stroke-width="1.4" marker-end="url(#a1)"/>
+        <rect x="60" y="196" width="180" height="20" rx="3" fill="none" stroke="#5FC1CC" stroke-width="1.4"/>
+        <text x="150" y="210" text-anchor="middle" fill="#5FC1CC" font-family="IBM Plex Sans" font-size="11.5">Wire mapping</text>
+      </svg>
+    </div>
+  </header>
+
+  <section>
+    <h2>How it works</h2>
+    <p class="section-sub">Four stages, each handling one part of what used to be a single manual task.</p>
+    <div class="steps">
+      <div class="step"><p class="num">01</p><h3>Ingest</h3><p>Load the vendor PDF and split it into individual pages for processing.</p></div>
+      <div class="step"><p class="num">02</p><h3>Read</p><p>Pass each page image to a vision model with a prompt targeted at terminal blocks and pin tables.</p></div>
+      <div class="step"><p class="num">03</p><h3>Structure</p><p>Normalize the model's output into a consistent schema — terminal, wire, signal, destination.</p></div>
+      <div class="step"><p class="num">04</p><h3>Map</h3><p>Hand the structured table to the wire-mapping step for cross-referencing against the panel design.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Under the hood</h2>
+    <p class="section-sub">A simplified view of the extraction loop — one call per page, validated against an expected schema before it's accepted.</p>
+    <div class="panel">
+      <p class="panel-label"><span>extract.py</span><span>illustrative</span></p>
+      <pre class="code"><span class="kw">for</span> page <span class="kw">in</span> manual.pages:
+    image = render(page)
+    result = vision_model.<span class="fn">extract</span>(
+        image=image,
+        schema=TerminalConnection,  <span class="cm"># terminal, wire, signal, destination</span>
+    )
+    connections.extend(result.validated())
+
+<span class="fn">write_table</span>(connections, out=<span class="kw">"wire_map.csv"</span>)</pre>
+      <div class="console">
+        <div><span class="ok">&gt;</span> reading page 14 of 62 — terminal block X1</div>
+        <div><span class="ok">&gt;</span> 6 terminals found, schema check passed</div>
+        <div><span class="amber">&gt;</span> page 15 — no terminal data, skipped</div>
+        <div><span class="ok">&gt;</span> reading page 16 of 62 — terminal block X2</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Example</h2>
+    <p class="section-sub">A representative page and the table it produces.</p>
+    <div class="split">
+      <div class="panel">
+        <p class="panel-label"><span>Input</span><span>vendor manual · p.14 (illustrative)</span></p>
+        <svg viewBox="0 0 380 300" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="380" height="300" fill="#0A141C" stroke="#21404F"/>
+          <text x="20" y="30" fill="#6C8896" font-family="IBM Plex Mono" font-size="11">FIG 6.2 — TERMINAL BLOCK X1</text>
+          <rect x="60" y="55" width="260" height="46" fill="#142B38" stroke="#21404F"/>
+          <g font-family="IBM Plex Mono" font-size="10" fill="#A9BCC5">
+            <line x1="90" y1="55" x2="90" y2="101" stroke="#21404F"/>
+            <line x1="120" y1="55" x2="120" y2="101" stroke="#21404F"/>
+            <line x1="150" y1="55" x2="150" y2="101" stroke="#21404F"/>
+            <line x1="180" y1="55" x2="180" y2="101" stroke="#21404F"/>
+            <line x1="210" y1="55" x2="210" y2="101" stroke="#21404F"/>
+            <line x1="240" y1="55" x2="240" y2="101" stroke="#21404F"/>
+            <line x1="270" y1="55" x2="270" y2="101" stroke="#21404F"/>
+            <text x="75" y="82" text-anchor="middle">1</text>
+            <text x="105" y="82" text-anchor="middle">2</text>
+            <text x="135" y="82" text-anchor="middle">3</text>
+            <text x="165" y="82" text-anchor="middle">4</text>
+            <text x="195" y="82" text-anchor="middle">5</text>
+            <text x="225" y="82" text-anchor="middle">6</text>
+            <text x="255" y="82" text-anchor="middle">7</text>
+            <text x="295" y="82" text-anchor="middle">8</text>
+          </g>
+          <g stroke="#5FC1CC" stroke-width="1.2" fill="none">
+            <path d="M75,101 V130"/><path d="M105,101 V150"/><path d="M135,101 V130"/>
+            <path d="M165,101 V150"/><path d="M195,101 V130"/><path d="M225,101 V150"/>
+          </g>
+          <g font-family="IBM Plex Mono" font-size="9.5" fill="#7C93A3">
+            <text x="75" y="142" text-anchor="middle">L1 — BU</text>
+            <text x="105" y="162" text-anchor="middle">L2 — BN</text>
+            <text x="135" y="142" text-anchor="middle">L3 — BK</text>
+            <text x="165" y="162" text-anchor="middle">N — WH</text>
+            <text x="195" y="142" text-anchor="middle">PE — GN</text>
+            <text x="225" y="162" text-anchor="middle">24V — RD</text>
+          </g>
+          <text x="20" y="210" fill="#6C8896" font-family="IBM Plex Mono" font-size="9.5">"Connect motor leads to X1:1–3 per</text>
+          <text x="20" y="224" fill="#6C8896" font-family="IBM Plex Mono" font-size="9.5">table 6.1. Route control voltage</text>
+          <text x="20" y="238" fill="#6C8896" font-family="IBM Plex Mono" font-size="9.5">from X1:6 to relay coil A1..."</text>
+        </svg>
+      </div>
+      <div class="panel">
+        <p class="panel-label"><span>Output</span><span>wire_map.csv</span></p>
+        <table class="extract">
+          <thead><tr><th>Term.</th><th>Wire</th><th>Signal</th><th>Destination</th></tr></thead>
+          <tbody>
+            <tr><td>X1:1</td><td>BU</td><td>L1</td><td>Motor U</td></tr>
+            <tr><td>X1:2</td><td>BN</td><td>L2</td><td>Motor V</td></tr>
+            <tr><td>X1:3</td><td>BK</td><td>L3</td><td>Motor W</td></tr>
+            <tr><td>X1:4</td><td>WH</td><td>N</td><td>Neutral bar</td></tr>
+            <tr><td>X1:5</td><td>GN</td><td>PE</td><td>Ground bar</td></tr>
+            <tr><td>X1:6</td><td>RD</td><td>24V</td><td>Relay K1-A1</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <p class="note"><strong>Self-directed internal build</strong>, written in Python against a vision model API. The manual excerpt and table above are illustrative examples built for this write-up, not client data. Companion project: <a class="pair-link" href="#">Drawing Diff</a>.</p>
+
+</div>
+</body>
+</html>
